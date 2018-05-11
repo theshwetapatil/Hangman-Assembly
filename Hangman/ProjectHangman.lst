@@ -1,0 +1,332 @@
+    1                  		.data
+    2 10010000 6572500a	label:	.asciiz	"\nPress any key : "
+    3 10010012 676e6148	line:	.asciiz	"Hangman!!!  "	   
+    4 1001001f cdcdc90a	line0:	.ascii	"\n…ÕÕÕÕÕÕÕÕ∏"
+    5 1001002a 2020ba0a		.ascii	"\n∫                "
+    6 1001003c 2020ba0a		.ascii	"\n∫                    "
+    7 10010052 2020ba0a		.ascii	"\n∫                            "
+    8 10010070 2020ba0a		.ascii	"\n∫                           "
+    9 1001008d 2020ba0a		.ascii	"\n∫                            "
+   10 100100ab 2020ba0a		.ascii	"\n∫                       "
+   11 100100c4 2020200a		.asciiz	"\n                         "
+   12 100100df 09010209	body_parts:	.byte	9,2,1,9,3,179,8,3,95,10,3,95,9,4,179,9,5,179
+   13 100100f1 0b2f0407			.byte	7,4,47,11,4,92,6,5,42,12,5,42,8,6,47,10,6,92,7,7,74,11,7,76,0
+   14 1001010a 616c500a	prompt:	.asciiz	"\nPlay again??? : "
+   15 1001011c 6575470a	puzzle:	.asciiz "\nGuess the puzzle : "
+   16 10010131 6362610a	alpha:	.asciiz	"\nabcdefghijklmnopqrstuvwxyz"
+   17 1001014d         	in:	.space	20
+   18 10010161 6957200a	win:	.asciiz	"\n Winner!!!"
+   19 1001016d 6f4c200a	loose:	.asciiz	"\n Looser!!!\nThe original word is : "
+   20                   	
+   21 10010194 00000000	ronlytxt	.word
+   22          00000400	file.bufsize 	= 	1024 	 
+   23 00000410         	file 	.struct 	  	 
+   24 00000000         	descriptor 	.word 	0 	#desscriptor returned from open
+   25 00000004         	name 	.word 	0 	#pointer to file name string
+   26 00000008         	count 	.word 	0 	#count of the bytes in the buffer
+   27 0000000c         	pointer 	.word 	0 	#pointer to the next character in the buffer
+   28 00000010         	buffer 	.space 	file.bufsize 	#actual file buffer
+   29                  	  	.data 	  	# end-of-struct
+   30                   
+   31                   
+   32                   #begin File flag constants -----------------------
+   33                   # copied directly out of VC++ 8 fcntl.h header with minor mods
+   34                   # to use these, ori these values together into the $a1 register
+   35                   # e.g., to create a new file and open it write-only,
+   36                   # with text translation off:
+   37                   #	li	$a1, _O_CREAT+_O_BINARY
+   38                   #
+   39                   #	This is the equivalent of the C code:
+   40                   #	a1 = _O_CREAT | _O_BINARY
+   41                   #
+   42          00000000	_O_RDONLY	= 0x0000 # /* open for reading only */
+   43          00000001	_O_WRONLY	= 0x0001 # /* open for writing only */
+   44          00000002	_O_RDWR	= 0x0002 # /* open for reading and writing */
+   45          00000008	_O_APPEND	= 0x0008 # /* writes done at eof */
+   46          00000090	_O_REWRITABLE	= 0x0090 # // without this file becomes read-only.
+   47          00000100	_O_CREAT	= 0x0100	#/* create and open file */
+   48          00000200	_O_TRUNC	= 0x0200	#/* open and truncate */
+   49          00000400	_O_EXCL	= 0x0400	#/* open only if file doesn't already exist */
+   50                   #/* O_TEXT files have <cr><lf> sequences translated to <lf> on read()'s,
+   51                   #** and <lf> sequences translated to <cr><lf> on write()'s*/
+   52          00004000	_O_TEXT 	= 0x4000	#/* file mode is text (translated) */
+   53          00008000	_O_BINARY	= 0x8000	#/* file mode is binary (untranslated) */
+   54          00010000	_O_WTEXT	= 0x10000 #/* file mode is UTF16 (translated) */
+   55          00020000	_O_U16TEXT	= 0x20000 #/* file mode is UTF16 no BOM (translated) */
+   56          00040000	_O_U8TEXT	= 0x40000 #/* file mode is UTF8	no BOM (translated) */
+   57                   #end File flag constants 	
+   58                  		.code
+   59                   #begin file.open
+   60                   file.open:
+   61                   	#open a file for writing
+   62 00400000 ace40004		sw	$a0,file.name($a3)      
+   63                  		li	$a1,_O_TEXT        
+   63 00400004 34054000		ori	$a1,$0,0x4000
+   64                  		li	$a2,0
+   64 00400008 34060000		ori	$a2,$0,0x00
+   65 0040000c 0000034c		syscall	$open          
+   66 00400010 ace20000		sw	$v0,file.descriptor($a3) #end
+   67                   #begin	file.fillBuffer	
+   68                   file.fillBuffer:
+   69 00400014 8ce40000		lw	$a0,file.descriptor($a3)
+   70 00400018 20e50010		addi	$a1,$a3,file.buffer
+   71 0040001c ace5000c		sw	$a1,file.pointer($a3)
+   72                  		li	$a2,file.bufsize
+   72 00400020 34060400		ori	$a2,$0,0x400
+   73 00400024 0000038c		syscall	$read
+   74 00400028 ace20008		sw	$v0,file.count($a3)
+   75 0040002c 03e00008		jr	$ra	#end
+   76                   #begin	file.close
+   77                   file.close:
+   78                   	#close file
+   79 00400030 8ce40000		lw	$a0,file.descriptor($a3)      
+   80 00400034 0000040c		syscall	$close           
+   81 00400038 03e00008		jr	$ra	#end
+   82                   #begin
+   83                   #	arguments	a0	pointer to dest buf
+   84                   #		a1	size of user buf
+   85                   #		a3	pointer to the file	
+   86                   file.readln:
+   87 0040003c 8ce8000c		lw	$t0,file.pointer($a3)
+   88 00400040 8ce90008		lw	$t1,file.count($a3)
+   89                  		li	$t2,10
+   89 00400044 340a000a		ori	$t2,$0,0x0A
+   90 00400048 00001021		mov	$v0,$0
+   91 0040004c 04010009		b	5f
+   92 00400050 910b0000	do:	lbu	$t3,0($t0)
+   93 00400054 21080001		addi	$t0,$t0,1
+   94 00400058 2129ffff		addi	$t1,$t1,-1
+   95 0040005c 116a0014		beq	$t3,$t2,9f
+   96 00400060 a08b0000		sb	$t3,($a0)
+   97 00400064 20840001		addi	$a0,$a0,1
+   98 00400068 20a5ffff		addi	$a1,$a1,-1
+   99 0040006c 20420001		addi	$v0,$v0,1
+  100 00400070 10a0000f		beqz	$a1,9f
+  101 00400074 1d20fff6	5:	bgtz	$t1,do
+  102 00400078 23bdffec		addi	$sp,$sp,-20
+  103 0040007c afbf0000		sw	$ra,0($sp)
+  104 00400080 afa20004		sw	$v0,4($sp)
+  105 00400084 afa40008		sw	$a0,8($sp)
+  106 00400088 afa5000c		sw	$a1,12($sp)
+  107 0040008c 0c100005		jal	file.fillBuffer
+  108 00400090 8ce8000c		lw	$t0,file.pointer($a3)
+  109 00400094 8ce90008		lw	$t1,file.count($a3)
+  110 00400098 8fbf0000		lw	$ra,0($sp)
+  111 0040009c 8fa20004		lw	$v0,4($sp)
+  112 004000a0 8fa40008		lw	$a0,8($sp)
+  113 004000a4 8fa5000c		lw	$a1,12($sp)
+  114 004000a8 23bd0014		addi	$sp,$sp,20
+  115 004000ac 1d20ffe8		bgtz	$t1,do
+  116 004000b0 a0800000	9:	sb	$0,($a0)
+  117 004000b4 ace8000c		sw	$t0,file.pointer($a3)
+  118 004000b8 ace90008		sw	$t1,file.count($a3)
+  119 004000bc 03e00008		jr	$ra	#end
+  120                   
+  121                  		.data
+  122 10010198 266b7273	filename:	.asciiz	"srk&rk.txt"
+  123                  		.align	2
+  124          00000043	lines	=	67
+  125 100101a4         	w:	.space	41
+  126                  		.align	2
+  127 100101d0         	file1	.space	file		#size of entire file
+  128                   
+  129                   
+  130                  		.code
+  131 004000c0         		.globl main
+  132                   	#begin get the string
+  133 004000c0 00002021	main:	mov	$a0,$0
+  134 004000c4 00002821		mov	$a1,$0
+  135 004000c8 0000050c		syscall	$xy
+  136                  		la	$a0,line
+  136 004000cc 3c041001		lui	$a0,0x1001
+  136 004000d0 34840012		ori	$a0,$a0,0x12
+  137 004000d4 0000010c		syscall	$print_string
+  138                   	#end
+  139                   
+  140                   	#begin random number generator
+  141 004000d8 000006cc	go:	syscall	$random
+  142 004000dc 00405821		mov	$t3,$v0
+  143                  		li	$t0,67
+  143 004000e0 34080043		ori	$t0,$0,0x43
+  144                  		remu	$v0,$v0,$t0
+  144 004000e4 15000001		bne	$t0,$0,08f
+  144 004000e8 0000000d		break	
+  144 004000ec 0048001b	08:	divu	$v0,$t0
+  144 004000f0 00001010		mfhi	$v0
+  145 004000f4 20420001		addi	$v0,$v0,1
+  146                   	#end
+  147                   	
+  148                   	#begin file handling
+  149 004000f8 00408821	next:	mov	$s1,$v0
+  150                  		la	$a0,filename
+  150 004000fc 3c041001		lui	$a0,0x1001
+  150 00400100 34840198		ori	$a0,$a0,0x198
+  151                  		la	$a3,file1   
+  151 00400104 3c071001		lui	$a3,0x1001
+  151 00400108 34e701d0		ori	$a3,$a3,0x1D0
+  152 0040010c 0c100000		jal	file.open
+  153                  	3:	la	$a0,w
+  153 00400110 3c041001		lui	$a0,0x1001
+  153 00400114 348401a4		ori	$a0,$a0,0x1A4
+  154                  		li	$a1,40
+  154 00400118 34050028		ori	$a1,$0,0x28
+  155 0040011c 0c10000f		jal	file.readln
+  156 00400120 0040a821		mov	$s5,$v0
+  157 00400124 2231ffff		addi	$s1,$s1,-1
+  158 00400128 1e20fff9		bgtz	$s1,3b
+  159                  		la	$a0,w
+  159 0040012c 3c041001		lui	$a0,0x1001
+  159 00400130 348401a4		ori	$a0,$a0,0x1A4
+  160 00400134 0c10000c		jal	file.close	
+  161                   	#end		
+  162                   	
+  163                   	#begin draw hangman
+  164                  		la	$a0,line0
+  164 00400138 3c041001		lui	$a0,0x1001
+  164 0040013c 3484001f		ori	$a0,$a0,0x1F
+  165 00400140 0000010c		syscall	$print_string
+  166 00400144 00008021		mov	$s0,$0	
+  167                  		la	$a0,label
+  167 00400148 3c041001		lui	$a0,0x1001
+  167 0040014c 34840000		ori	$a0,$a0,0x00
+  168 00400150 0000010c		syscall	$print_string
+  169                   	#end	
+  170                   	
+  171                   	#begin Guess character
+  172                  		la	$a0,puzzle
+  172 00400154 3c041001		lui	$a0,0x1001
+  172 00400158 3484011c		ori	$a0,$a0,0x11C
+  173 0040015c 0000010c		syscall	$print_string
+  174                   	
+  175 00400160 200e002d		addi	$t6,$0,45
+  176 00400164 2018003a		addi	$t8,$0,58
+  177 00400168 02a05821		mov	$t3,$s5
+  178                  		la	$s1,w
+  178 0040016c 3c111001		lui	$s1,0x1001
+  178 00400170 363101a4		ori	$s1,$s1,0x1A4
+  179 00400174 92240000	for:	lbu 	$a0,0($s1)
+  180 00400178 22310001		addi 	$s1,$s1,1
+  181 0040017c 108e0002		beq	$a0,$t6,pr
+  182 00400180 10980001		beq	$a0,$t8,pr
+  183 00400184 2004005f		addi	$a0,$0,'_
+  184 00400188 000002cc	pr:	syscall	$print_char
+  185                  		li	$a0,32
+  185 0040018c 34040020		ori	$a0,$0,0x20
+  186 00400190 000002cc		syscall	$print_char
+  187 00400194 216bffff		addi	$t3,$t3,-1
+  188 00400198 1560fff6		bnez	$t3,for
+  189                  		li	$t6,20
+  189 0040019c 340e0014		ori	$t6,$0,0x14
+  190                  	repeat:	li	$a0,32
+  190 004001a0 34040020		ori	$a0,$0,0x20
+  191 004001a4 000002cc		syscall	$print_char
+  192 004001a8 21ceffff		addi	$t6,$t6,-1
+  193 004001ac 15c0fffc		bnez	$t6,repeat
+  194                   		
+  195                  		la	$a0,alpha
+  195 004001b0 3c041001		lui	$a0,0x1001
+  195 004001b4 34840131		ori	$a0,$a0,0x131
+  196 004001b8 0000010c		syscall	$print_string
+  197                   	
+  198                  		li	$a0,19
+  198 004001bc 34040013		ori	$a0,$0,0x13
+  199                  		li	$a1,10
+  199 004001c0 3405000a		ori	$a1,$0,0x0A
+  200 004001c4 0000050c		syscall	$xy
+  201 004001c8 0000030c	st:	syscall	$read_char
+  202 004001cc 0040a021		mov	$s4,$v0
+  203 004001d0 2284ff9f		addi	$a0,$s4,0-'a
+  204                  		li	$a1,11
+  204 004001d4 3405000b		ori	$a1,$0,0x0B
+  205 004001d8 0000050c		syscall	$xy
+  206                  		li	$a0,32
+  206 004001dc 34040020		ori	$a0,$0,0x20
+  207 004001e0 1082fff9		beq	$a0,$v0,st
+  208 004001e4 000002cc		syscall	$print_char	
+  209                   	
+  210                   	#compare character with the string
+  211                  		la	$s1,w
+  211 004001e8 3c111001		lui	$s1,0x1001
+  211 004001ec 363101a4		ori	$s1,$s1,0x1A4
+  212 004001f0 0000c821		mov	$t9,$0
+  213 004001f4 92240000	loop1:	lbu 	$a0,0($s1)
+  214 004001f8 22310001		addi 	$s1,$s1,1
+  215 004001fc 1080000c		beqz	$a0,6f
+  216                   	
+  217 00400200 1494fffc		bne 	$a0,$s4,loop1		#character match
+  218                   	#add character to the puzzle
+  219                  		la	$t6,w
+  219 00400204 3c0e1001		lui	$t6,0x1001
+  219 00400208 35ce01a4		ori	$t6,$t6,0x1A4
+  220 0040020c 022e2022		sub	$a0,$s1,$t6
+  221 00400210 00042040		sll	$a0,$a0,1
+  222 00400214 20840011		addi	$a0,$a0,17
+  223                  		li	$a1,10
+  223 00400218 3405000a		ori	$a1,$0,0x0A
+  224 0040021c 0000050c		syscall	$xy
+  225 00400220 02802021		mov	$a0,$s4
+  226 00400224 000002cc		syscall	$print_char
+  227 00400228 23390001		addi	$t9,$t9,1
+  228 0040022c 0401fff1		b	loop1
+  229                   	
+  230 00400230 1720000d	6:	bnez	$t9,2f
+  231                   	
+  232                   	#add body part
+  233                  		la	$a0,body_parts
+  233 00400234 3c041001		lui	$a0,0x1001
+  233 00400238 348400df		ori	$a0,$a0,0xDF
+  234 0040023c 00104840		sll	$t1,$s0,1
+  235 00400240 01304820		add	$t1,$t1,$s0
+  236 00400244 00894821		addu	$t1,$a0,$t1
+  237 00400248 81240000		lb	$a0,($t1)
+  238                   	#beqz	$a0,exit
+  239 0040024c 81250001		lb	$a1,1($t1)
+  240 00400250 0000050c		syscall	$xy
+  241 00400254 81240002		lb	$a0,2($t1)
+  242 00400258 000002cc		syscall	$print_char
+  243 0040025c 81220003		lb	$v0,3($t1)
+  244 00400260 22100001		addi	$s0,$s0,1
+  245 00400264 10400008		beqz	$v0,8f
+  246                   		
+  247                   	#winner
+  248 00400268 02b9a822	2:	sub	$s5,$s5,$t9
+  249 0040026c 16a0ffd6		bnez	$s5,st
+  250                  		li	$a1,13
+  250 00400270 3405000d		ori	$a1,$0,0x0D
+  251 00400274 0000050c		syscall	$xy
+  252                  		la	$a0,win
+  252 00400278 3c041001		lui	$a0,0x1001
+  252 0040027c 34840161		ori	$a0,$a0,0x161
+  253 00400280 0000010c		syscall	$print_string
+  254 00400284 04010009		b	4f
+  255                   
+  256                   	#looser
+  257 00400288 00807821	8:	mov	$t7,$a0	#t7=0=HANGED
+  258                  		li	$a1,13
+  258 0040028c 3405000d		ori	$a1,$0,0x0D
+  259 00400290 0000050c		syscall	$xy
+  260                  		la	$a0,loose
+  260 00400294 3c041001		lui	$a0,0x1001
+  260 00400298 3484016d		ori	$a0,$a0,0x16D
+  261 0040029c 0000010c		syscall	$print_string
+  262                  		la	$a0,w
+  262 004002a0 3c041001		lui	$a0,0x1001
+  262 004002a4 348401a4		ori	$a0,$a0,0x1A4
+  263 004002a8 0000010c		syscall	$print_string	
+  264                   	#end
+  265                   	
+  266                  	4:	la	$a0,prompt
+  266 004002ac 3c041001		lui	$a0,0x1001
+  266 004002b0 3484010a		ori	$a0,$a0,0x10A
+  267 004002b4 0000010c		syscall	$print_string
+  268 004002b8 0000030c		syscall	$read_char
+  269                  		li	$t5,89
+  269 004002bc 340d0059		ori	$t5,$0,0x59
+  270 004002c0 104dff7f		beq	$v0,$t5,main
+  271                  		li	$t5,121
+  271 004002c4 340d0079		ori	$t5,$0,0x79
+  272 004002c8 104dff7d		beq	$v0,$t5,main
+  273                   	
+  274 004002cc 0000028c		syscall	$exit
+  275                   		
+                 	
